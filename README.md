@@ -85,11 +85,20 @@ flowchart LR
 ## Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/llm-gateway.git
+# clone karo
+git clone https://github.com/Abhi291712/llm-gateway.git
 cd llm-gateway
-pip install -r requirements.txt
+
+# uv install karo (agar nahi hai)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# dependencies install karo
+uv sync
+
+# env setup karo
 cp .env.example .env
 # add your API keys in .env
+	
 ```
 
 ## Project Structure
