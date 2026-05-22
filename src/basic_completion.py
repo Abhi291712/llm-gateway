@@ -6,7 +6,7 @@ Solution: LiteLLM gives one unified function - just change the model name.
 """
 
 from litellm import completion
-from config import MODELS
+from src.config import MODELS
 
 
 def call_llm(prompt: str, provider: str = "openai") -> str:
