@@ -29,59 +29,24 @@ A production-inspired API gateway for multi-provider LLM applications. Handles r
 
 ## Architecture
 
-```
-User Request
-      |
-      v
-FastAPI Server (REST + Streaming)
-      |
-      v
-JWT Authentication
-      |
-      v
-Rate Limiter
-Per-user and per-IP request throttling
-      |
-      v
-Input Guardrails
-PII Redaction + Prompt Injection Detection
-      |
-      v
-Smart Router
-Task classifier assigns optimal model chain
-      |
-      v
-Cache Layer
-Exact Match → Semantic Match (FAISS) → Miss
-      |
-      v (cache miss)
-Load Balancer
-API key rotation across provider keys
-      |
-      v
-Primary Model Call (LiteLLM)
-      |
-      v (on failure)
-Exponential Backoff + Retry with Jitter
-      |
-      v (retries exhausted)
-Fallback Chain
-Model 2 → Model 3 → Final fallback
-      |
-      v
-Circuit Breaker
-Repeated failures open the circuit — provider skipped
-      |
-      v
-Cost Tracking + Budget Control
-Token count, dollar cost, per-user spend limit
-      |
-      v
-Observability
-LangFuse tracing + Prometheus metrics
-      |
-      v
-Response to User
+```mermaid
+flowchart TD
+    A[User Request] --> B[FastAPI Server\nREST + Streaming]
+    B --> C[JWT Authentication]
+    C --> D[Rate Limiter\nPer-user and Per-IP]
+    D --> E[Input Guardrails\nPII Redaction + Injection Detection]
+    E --> F[Smart Router\nTask Classifier]
+    F --> G{Cache Check}
+    G -- Hit --> H[Return Cached Response\nZero Cost]
+    G -- Miss --> I[Load Balancer\nAPI Key Rotation]
+    I --> J[Primary Model\nLiteLLM]
+    J -- Failure --> K[Exponential Backoff\nRetry with Jitter]
+    K -- Exhausted --> L[Fallback Chain\nModel 2 → Model 3]
+    L --> M[Circuit Breaker\nOpen on Repeated Failures]
+    J -- Success --> N[Cost Tracking\nTokens + Budget Control]
+    L -- Success --> N
+    N --> O[Observability\nLangFuse + Prometheus]
+    O --> P[Response to User]
 ```
 
 ---
@@ -110,6 +75,18 @@ Response to User
 
 ## Routing Logic
 
+```mermaid
+flowchart LR
+    A[User Query] --> B[Token Counter\n+ Task Classifier]
+    B -- tokens > 8000 --> C[Large Context Model\nGPT-4o 128k]
+    B -- code --> D[GPT-4o]
+    B -- summary --> E[GPT-4o-mini]
+    B -- general --> F[Groq Llama 3.3\nLowest Cost]
+    C -- fails --> D
+    D -- fails --> E
+    E -- fails --> F
+```
+
 Routing decisions are based on measurable signals — not keyword matching.
 
 | Signal | Action |
@@ -126,20 +103,15 @@ Routing decisions are based on measurable signals — not keyword matching.
 
 ## Cache Layers
 
-```
-Query
-  |
-  v
-Exact Match (Redis)
-Same string as previous query → return instantly, zero cost
-  |
-  v (no match)
-Semantic Match (FAISS)
-Embedding similarity > 0.95 → return cached response
-  |
-  v (no match)
-Full LLM Call
-Response stored in both cache layers
+```mermaid
+flowchart LR
+    A[Query] --> B{Exact Match?\nRedis}
+    B -- Yes --> C[Return Instantly\nZero Cost]
+    B -- No --> D{Semantic Match?\nFAISS similarity > 0.95}
+    D -- Yes --> C
+    D -- No --> E{Prompt Cache?\nStatic Prefix}
+    E -- Yes --> F[Partial Token Saving]
+    E -- No --> G[Full LLM Call\nStore in Cache]
 ```
 
 ---
